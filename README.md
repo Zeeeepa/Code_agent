@@ -77,6 +77,18 @@ Required environment variables:
 - `CODEGEN_ORG_ID`: CodeGen organization ID
 - `NGROK_TOKEN`: ngrok authentication token (for webhook exposure)
 
+## Development
+
+To set up the development environment:
+
+```bash
+# Install in development mode
+python install.py --dev
+
+# Run tests
+python install.py --test
+```
+
 ## License
 
 MIT

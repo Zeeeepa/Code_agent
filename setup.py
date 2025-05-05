@@ -5,10 +5,10 @@ setup(
     version="0.1.0",
     packages=find_packages(),
     install_requires=[
-        "codegen>=0.1.0",
-        "PyGithub>=1.55",
-        "pyngrok>=5.1.0",
-        "requests>=2.25.1",
+        "codegen>=0.55.4",
+        "PyGithub>=2.6.1",
+        "pyngrok>=7.2.5",
+        "requests>=2.32.3",
     ],
     entry_points={
         "console_scripts": [
