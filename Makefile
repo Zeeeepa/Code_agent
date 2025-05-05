@@ -5,19 +5,19 @@ all: test
 
 # Install the package
 install:
-	python setup.py
+	python install.py
 
 # Install development dependencies
 install-dev:
-	python setup.py --dev
+	python install.py --dev
 
 # Run tests after installation
 install-test:
-	python setup.py --test
+	python install.py --test
 
 # Install in development mode and run tests
 install-dev-test:
-	python setup.py --dev --test
+	python install.py --dev --test
 
 # Run all tests
 test:
