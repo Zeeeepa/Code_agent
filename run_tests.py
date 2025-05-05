@@ -13,7 +13,7 @@ Options:
     --module/-m MODULE    Run tests only for the specified module
     --verbose/-v          Increase verbosity
     --coverage/-c         Generate coverage report
-    --html-report/-h      Generate HTML coverage report
+    --html-cov/-H         Generate HTML coverage report
     --xml-report/-x       Generate XML coverage report
     --junit-report/-j     Generate JUnit XML report
     --no-capture/-s       Don't capture stdout/stderr
@@ -45,7 +45,7 @@ def parse_args():
         help="Generate coverage report"
     )
     parser.add_argument(
-        "-h", "--html-report", 
+        "-H", "--html-cov", 
         action="store_true", 
         help="Generate HTML coverage report"
     )
@@ -95,11 +95,11 @@ def run_tests(args):
         cmd.append("--junitxml=test-results.xml")
     
     # Add coverage
-    if args.coverage or args.html_report or args.xml_report:
+    if args.coverage or args.html_cov or args.xml_report:
         cmd.append("--cov=code_agent")
         cmd.append("--cov-report=term")
         
-        if args.html_report:
+        if args.html_cov:
             cmd.append("--cov-report=html")
         
         if args.xml_report:
@@ -153,4 +153,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
