@@ -4,6 +4,7 @@ Test script to verify the Code Agent installation
 """
 
 import sys
+import pytest
 import importlib.util
 
 def check_module(module_name):
@@ -14,8 +15,37 @@ def check_module(module_name):
     except ImportError:
         return False
 
+def test_core_modules():
+    """Test that all core modules can be imported."""
+    # Check core modules
+    core_modules = [
+        "code_agent",
+        "code_agent.core.config",
+        "code_agent.core.context_manager",
+        "code_agent.core.integration",
+        "code_agent.core.issue_solver",
+        "code_agent.core.workflow",
+        "code_agent.runner",
+        "code_agent.demo"
+    ]
+    
+    for module in core_modules:
+        assert check_module(module), f"Failed to import {module}"
+
+def test_dependencies():
+    """Test that all dependencies can be imported."""
+    # Check dependencies
+    dependencies = [
+        "github",
+        "pyngrok",
+        "requests"
+    ]
+    
+    for dep in dependencies:
+        assert check_module(dep), f"Failed to import dependency {dep}"
+
 def main():
-    """Main test function."""
+    """Main test function for command-line usage."""
     print("Testing Code Agent installation...")
     
     # Check core modules
@@ -62,4 +92,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
