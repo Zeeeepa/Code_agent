@@ -17,7 +17,31 @@ def run_command(command):
         return False
     return True
 
-def main():
+def post_install():
+    """Post-installation steps"""
+    # Make the CLI script executable
+    print("\nMaking CLI script executable...")
+    if not run_command("chmod +x code-agent"):
+        print("Failed to make CLI script executable.")
+        return False
+    
+    print("\nInstallation complete!")
+    print("\nYou can now use Code Agent with:")
+    print("  code-agent --help")
+    print("  python -m code_agent --help")
+    print("  python -m code_agent.demo --help")
+    
+    return True
+
+def run_tests():
+    """Run the installation tests"""
+    print("\nRunning tests...")
+    if not run_command("python tests/test_installation.py"):
+        print("Tests failed.")
+        return False
+    return True
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Install Code Agent")
     parser.add_argument("--dev", action="store_true", help="Install in development mode")
     parser.add_argument("--test", action="store_true", help="Run tests after installation")
@@ -32,42 +56,28 @@ def main():
     print("\nInstalling dependencies...")
     if not run_command("pip install -r requirements.txt"):
         print("Failed to install dependencies.")
-        return 1
+        sys.exit(1)
     
     # Install the package
     print("\nInstalling Code Agent...")
     if args.dev:
         if not run_command("pip install -e ."):
             print("Failed to install Code Agent in development mode.")
-            return 1
+            sys.exit(1)
         print("Code Agent installed in development mode.")
     else:
         if not run_command("pip install ."):
             print("Failed to install Code Agent.")
-            return 1
+            sys.exit(1)
         print("Code Agent installed.")
     
-    # Make the CLI script executable
-    print("\nMaking CLI script executable...")
-    if not run_command("chmod +x code-agent"):
-        print("Failed to make CLI script executable.")
-        return 1
+    # Post-installation steps
+    if not post_install():
+        sys.exit(1)
     
     # Run tests if requested
-    if args.test:
-        print("\nRunning tests...")
-        if not run_command("python tests/test_installation.py"):
-            print("Tests failed.")
-            return 1
+    if args.test and not run_tests():
+        sys.exit(1)
     
-    print("\nInstallation complete!")
-    print("\nYou can now use Code Agent with:")
-    print("  code-agent --help")
-    print("  python -m code_agent --help")
-    print("  python -m code_agent.demo --help")
-    
-    return 0
-
-if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(0)
 

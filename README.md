@@ -18,7 +18,7 @@ git clone https://github.com/Zeeeepa/Code_agent.git
 cd Code_agent
 
 # Install the package
-python setup.py
+python install.py
 ```
 
 ### Development Installation
@@ -29,7 +29,7 @@ git clone https://github.com/Zeeeepa/Code_agent.git
 cd Code_agent
 
 # Install in development mode
-python setup.py --dev
+python install.py --dev
 # or
 pip install -e .
 ```
