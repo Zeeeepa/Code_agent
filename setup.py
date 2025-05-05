@@ -10,6 +10,18 @@ setup(
         "pyngrok>=5.1.0",
         "requests>=2.25.1",
     ],
+    extras_require={
+        "dev": [
+            "pytest>=6.0.0",
+            "pytest-cov>=2.10.0",
+            "black>=20.8b1",
+            "flake8>=3.8.0",
+        ],
+        "test": [
+            "pytest>=6.0.0",
+            "pytest-cov>=2.10.0",
+        ],
+    },
     entry_points={
         "console_scripts": [
             "code-agent=code_agent.runner:main",
@@ -21,4 +33,3 @@ setup(
     author_email="info@zeeeepa.com",
     url="https://github.com/Zeeeepa/Code_agent",
 )
-

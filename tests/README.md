@@ -4,6 +4,26 @@ This directory contains tests for the Code Agent project.
 
 ## Running Tests
 
+### Using the Test Runner Script
+
+The easiest way to run tests is using the test runner script:
+
+```bash
+python run_tests.py
+```
+
+This script provides several options:
+
+```bash
+python run_tests.py --help  # Show all available options
+python run_tests.py -m workflow  # Run only workflow tests
+python run_tests.py -c  # Generate coverage report
+python run_tests.py -h  # Generate HTML coverage report
+python run_tests.py -v  # Run with verbose output
+```
+
+### Using pytest directly
+
 To run all tests:
 
 ```bash
@@ -53,6 +73,10 @@ pytest --cov=code_agent --cov-report=html
 - `conftest.py`: Contains pytest fixtures and configuration
 - `test_installation.py`: Tests for verifying the installation
 - `test_runner.py`: Tests for the runner module
+- `test_workflow.py`: Tests for the workflow module
+- `test_integration.py`: Tests for the integration module
+- `test_issue_solver.py`: Tests for the issue solver module
+- `test_config.py`: Tests for the configuration module
 
 ## Adding New Tests
 
@@ -63,4 +87,3 @@ When adding new tests, follow these guidelines:
 3. Mock external dependencies
 4. Test both success and failure cases
 5. Add docstrings to test classes and functions
-
