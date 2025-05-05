@@ -6,9 +6,9 @@ setup(
     packages=find_packages(),
     install_requires=[
         "codegen>=0.1.0",
-        "PyGithub>=1.55",
-        "pyngrok>=5.1.0",
-        "requests>=2.25.1",
+        "PyGithub>=2.1.1",
+        "pyngrok>=6.0.0",
+        "requests>=2.31.0",
     ],
     entry_points={
         "console_scripts": [
