@@ -62,13 +62,32 @@ Run the demo script to see all components in action:
 python -m code_agent.demo --repo <owner/repo> --issue <issue_number> --codegen-token <token> --codegen-org-id <org_id> --github-token <token>
 ```
 
+## Project Structure
+
+The project follows a standard Python package structure:
+
+```
+code_agent/
+├── __init__.py         # Package initialization
+├── __main__.py         # Entry point for running as a module
+├── runner.py           # Main runner script
+├── demo.py             # Demo script
+└── core/               # Core functionality
+    ├── __init__.py
+    ├── config.py       # Configuration management
+    ├── context_manager.py  # Context collection and management
+    ├── integration.py  # Integration with external services
+    ├── issue_solver.py # GitHub issue solver
+    └── workflow.py     # CI/CD workflow automation
+```
+
 ## Configuration
 
 You can configure the tool using:
 
 1. Environment variables
 2. Command line arguments
-3. Configuration file (codegen_config.json)
+3. Configuration file (code_agent_config.json)
 
 Required environment variables:
 
@@ -80,4 +99,3 @@ Required environment variables:
 ## License
 
 MIT
-
