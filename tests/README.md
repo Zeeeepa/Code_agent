@@ -18,7 +18,7 @@ This script provides several options:
 python run_tests.py --help  # Show all available options
 python run_tests.py -m workflow  # Run only workflow tests
 python run_tests.py -c  # Generate coverage report
-python run_tests.py -h  # Generate HTML coverage report
+python run_tests.py -H  # Generate HTML coverage report
 python run_tests.py -v  # Run with verbose output
 ```
 
