@@ -17,7 +17,7 @@ test-coverage:
 
 # Run tests with HTML coverage report
 test-html:
-	python run_tests.py -h -v
+	python run_tests.py -H -v
 
 # Run specific module tests
 test-module:
@@ -44,4 +44,3 @@ help:
 	@echo "  test-module    : Run tests for a specific module (e.g., make test-module MODULE=workflow)"
 	@echo "  clean          : Clean up temporary files"
 	@echo "  help           : Show this help message"
-
