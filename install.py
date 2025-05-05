@@ -7,6 +7,7 @@ import os
 import sys
 import subprocess
 import argparse
+import platform
 
 def run_command(command):
     """Run a shell command and return the output."""
@@ -21,6 +22,7 @@ def main():
     parser = argparse.ArgumentParser(description="Install Code Agent")
     parser.add_argument("--dev", action="store_true", help="Install in development mode")
     parser.add_argument("--test", action="store_true", help="Run tests after installation")
+    parser.add_argument("--upgrade", action="store_true", help="Upgrade dependencies to latest versions")
     
     args = parser.parse_args()
     
@@ -30,7 +32,11 @@ def main():
     
     # Install dependencies
     print("\nInstalling dependencies...")
-    if not run_command("pip install -r requirements.txt"):
+    pip_cmd = "pip install"
+    if args.upgrade:
+        pip_cmd += " --upgrade"
+    
+    if not run_command(f"{pip_cmd} -r requirements.txt"):
         print("Failed to install dependencies.")
         return 1
     
@@ -47,11 +53,12 @@ def main():
             return 1
         print("Code Agent installed.")
     
-    # Make the CLI script executable
-    print("\nMaking CLI script executable...")
-    if not run_command("chmod +x code-agent"):
-        print("Failed to make CLI script executable.")
-        return 1
+    # Make the CLI script executable on Unix-like systems
+    if platform.system() != "Windows":
+        print("\nMaking CLI script executable...")
+        if not run_command("chmod +x code-agent"):
+            print("Failed to make CLI script executable.")
+            return 1
     
     # Run tests if requested
     if args.test:
@@ -59,6 +66,8 @@ def main():
         if not run_command("python tests/test_installation.py"):
             print("Tests failed.")
             return 1
+        else:
+            print("All tests passed!")
     
     print("\nInstallation complete!")
     print("\nYou can now use Code Agent with:")

@@ -5,6 +5,8 @@ Test script to verify the Code Agent installation
 
 import sys
 import importlib.util
+import subprocess
+import platform
 
 def check_module(module_name):
     """Check if a module can be imported."""
@@ -12,6 +14,14 @@ def check_module(module_name):
         importlib.import_module(module_name)
         return True
     except ImportError:
+        return False
+
+def check_command(command):
+    """Check if a command can be executed."""
+    try:
+        result = subprocess.run(command, shell=True, text=True, capture_output=True)
+        return result.returncode == 0
+    except Exception:
         return False
 
 def main():
@@ -52,6 +62,25 @@ def main():
         else:
             print(f"❌ {dep} - FAILED")
             all_passed = False
+    
+    # Check CLI command
+    print("\nChecking CLI command...")
+    cli_command = "code-agent --help"
+    if check_command(cli_command):
+        print(f"✅ CLI command - OK")
+    else:
+        print(f"❌ CLI command - FAILED")
+        print("  Note: You may need to restart your terminal or add the installation directory to your PATH.")
+        all_passed = False
+    
+    # Check module command
+    print("\nChecking module command...")
+    module_command = "python -m code_agent --help"
+    if check_command(module_command):
+        print(f"✅ Module command - OK")
+    else:
+        print(f"❌ Module command - FAILED")
+        all_passed = False
     
     if all_passed:
         print("\nAll tests passed! Code Agent is properly installed.")

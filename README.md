@@ -15,11 +15,12 @@ An AI-powered code agent for GitHub repositories that helps automate development
 git clone https://github.com/Zeeeepa/Code_agent.git
 cd Code_agent
 
-# Install dependencies
+# Option 1: Quick install
 pip install -r requirements.txt
-
-# Install the package in development mode
 pip install -e .
+
+# Option 2: Use the installation script
+python install.py --dev
 ```
 
 ## Usage
@@ -95,6 +96,14 @@ Required environment variables:
 - `CODEGEN_TOKEN`: CodeGen API token
 - `CODEGEN_ORG_ID`: CodeGen organization ID
 - `NGROK_TOKEN`: ngrok authentication token (for webhook exposure)
+
+## Development
+
+To run tests:
+
+```bash
+python tests/test_installation.py
+```
 
 ## License
 
