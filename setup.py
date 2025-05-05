@@ -14,6 +14,7 @@ setup(
         "PyGithub>=1.55",
         "pyngrok>=5.1.0",
         "requests>=2.25.1",
+        "codegen>=0.1.0",
     ],
     extras_require={
         "dev": [
