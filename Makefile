@@ -1,11 +1,23 @@
-.PHONY: test test-coverage test-html clean install-dev
+.PHONY: test test-coverage test-html clean install install-dev
 
 # Default target
 all: test
 
+# Install the package
+install:
+	python setup.py
+
 # Install development dependencies
 install-dev:
-	pip install -e ".[dev]"
+	python setup.py --dev
+
+# Run tests after installation
+install-test:
+	python setup.py --test
+
+# Install in development mode and run tests
+install-dev-test:
+	python setup.py --dev --test
 
 # Run all tests
 test:
@@ -37,7 +49,10 @@ clean:
 help:
 	@echo "Available targets:"
 	@echo "  all            : Run all tests (default)"
-	@echo "  install-dev    : Install development dependencies"
+	@echo "  install        : Install the package"
+	@echo "  install-dev    : Install in development mode"
+	@echo "  install-test   : Install and run tests"
+	@echo "  install-dev-test: Install in development mode and run tests"
 	@echo "  test           : Run all tests"
 	@echo "  test-coverage  : Run tests with coverage report"
 	@echo "  test-html      : Run tests with HTML coverage report"

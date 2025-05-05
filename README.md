@@ -10,16 +10,46 @@ An AI-powered code agent for GitHub repositories that helps automate development
 
 ## Installation
 
+### Quick Installation
+
 ```bash
 # Clone the repository
 git clone https://github.com/Zeeeepa/Code_agent.git
 cd Code_agent
 
-# Install dependencies
-pip install -r requirements.txt
+# Install the package
+python setup.py
+```
 
-# Install the package in development mode
+### Development Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/Zeeeepa/Code_agent.git
+cd Code_agent
+
+# Install in development mode
+python setup.py --dev
+# or
 pip install -e .
+```
+
+### Using Make
+
+The project includes a Makefile with several installation targets:
+
+```bash
+# Standard installation
+make install
+
+# Development installation
+make install-dev
+
+# Install and run tests
+make install-test
+
+# Install in development mode and run tests
+make install-dev-test
 ```
 
 ## Usage
@@ -79,6 +109,24 @@ code_agent/
     ├── integration.py  # Integration with external services
     ├── issue_solver.py # GitHub issue solver
     └── workflow.py     # CI/CD workflow automation
+```
+
+## Testing
+
+The project includes a comprehensive test suite:
+
+```bash
+# Run all tests
+make test
+
+# Run tests with coverage report
+make test-coverage
+
+# Run tests with HTML coverage report
+make test-html
+
+# Run tests for a specific module
+make test-module MODULE=workflow
 ```
 
 ## Configuration
