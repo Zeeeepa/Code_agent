@@ -321,7 +321,11 @@ class CodeGenManager:
     
     def __init__(self, config: Configuration):
         self.config = config
-        self.agent = Agent(org_id=config.codegen_org_id, token=config.codegen_token)
+        # Initialize the Codegen Agent with API key and organization ID
+        self.agent = Agent(
+            api_key=config.codegen_token,
+            org_id=config.codegen_org_id
+        )
         logger.info("Initialized CodeGen agent")
         
     def analyze_requirements(self, requirements: str) -> Dict:
@@ -718,7 +722,7 @@ def main():
     os.makedirs(deploy_dir, exist_ok=True)
     
     # Step 1: Clone repository
-    logger.info(f"Cloning repository {repo_url}...")
+    logger.info(f"Cloning repository {repo_url}...OK")
     success, _, _ = run_command(f"git clone {repo_url} .", cwd=deploy_dir)
     if not success:
         logger.error("Failed to clone repository")
@@ -1115,14 +1119,13 @@ class WorkflowManager:
 
 The deployment of PR #{pr.number} failed. Please check the logs:
 
-```
-{logs}
+```{logs}
 ```
 
 Please address these issues before merging.
 """
             pr.create_issue_comment(error_comment)
-            logger.info(f"Added deployment failure comment to PR #{pr.number}")
+            logger.info(f"Added deployment failure comment to PR #{pr_number}")
         except Exception as e:
             logger.error(f"Error adding deployment failure comment: {str(e)}")
         
@@ -1143,7 +1146,7 @@ The deployment completed, but the following issues were found:
 A fix branch will be created to address these issues.
 """
             pr.create_issue_comment(issues_comment)
-            logger.info(f"Added deployment issues comment to PR #{pr.number}")
+            logger.info(f"Added deployment issues comment to PR #{pr_number}")
         except Exception as e:
             logger.error(f"Error adding deployment issues comment: {str(e)}")
             return False
