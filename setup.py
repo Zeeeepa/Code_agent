@@ -5,7 +5,6 @@ setup(
     version="0.1.0",
     packages=find_packages(),
     install_requires=[
-        "codegen>=0.1.0",
         "PyGithub>=1.55",
         "pyngrok>=5.1.0",
         "requests>=2.25.1",
