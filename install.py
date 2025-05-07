@@ -48,9 +48,16 @@ def get_egg_link_locations():
     for site_dir in site.getsitepackages() + [site.getusersitepackages()]:
         pattern = os.path.join(site_dir, "code_agent-*.egg-link")
         for egg_link in glob.glob(pattern):
-            with open(egg_link, 'r') as f:
-                egg_path = f.readline().strip()
-                locations.append(os.path.join(egg_path, "code_agent", "runner.py"))
+            try:
+                with open(egg_link, 'r') as f:
+                    egg_path = f.readline().strip()
+                    # Verify the path exists and is a directory before adding it
+                    if egg_path and os.path.isdir(egg_path):
+                        locations.append(os.path.join(egg_path, "code_agent", "runner.py"))
+            except (IOError, OSError) as e:
+                # Skip this egg-link if there's an error reading it
+                print(f"Warning: Could not read egg-link file {egg_link}: {e}")
+                continue
     return locations
 
 def find_cli_script():
