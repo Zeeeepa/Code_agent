@@ -155,6 +155,10 @@ The enhanced Codegen client (`code_agent.core.codegen_client.CodegenClient`) pro
 - **Enhanced Response Parsing**: Improved JSON parsing with support for various response formats
 - **Type Safety**: Full type annotations for better IDE support and code quality
 - **Comprehensive Logging**: Detailed logging of API interactions for debugging
+- **Circuit Breaker Pattern**: Protection against repeated calls to failing services
+- **Request Validation**: Pre-request validation to catch common errors
+- **Flexible Configuration**: Support for environment variables and runtime configuration
+- **Rate Limiting Handling**: Smart retry logic with exponential backoff and jitter
 
 Example usage:
 
@@ -187,6 +191,18 @@ except ValueError as e:
     print(f"Failed to parse JSON: {e}")
 ```
 
-## License
+### Configuration Options
 
-MIT
+The client can be configured through constructor arguments or environment variables:
+
+| Parameter | Environment Variable | Description |
+|-----------|---------------------|-------------|
+| `api_key` | `CODEGEN_TOKEN` or `CODEGEN_API_KEY` | Codegen API key |
+| `org_id` | `CODEGEN_ORG_ID` or `CODEGEN_ORGANIZATION_ID` | Codegen organization ID |
+| `max_retries` | `CODEGEN_MAX_RETRIES` | Maximum number of retries for API calls |
+| `retry_delay` | `CODEGEN_RETRY_DELAY` | Initial delay between retries (seconds) |
+| `polling_interval` | `CODEGEN_POLLING_INTERVAL` | Interval between polling for task status (seconds) |
+| `polling_timeout` | `CODEGEN_POLLING_TIMEOUT` | Maximum time to wait for task completion (seconds) |
+| `request_timeout` | `CODEGEN_REQUEST_TIMEOUT` | Timeout for individual API requests (seconds) |
+| `circuit_breaker_threshold` | `CODEGEN_CIRCUIT_BREAKER_THRESHOLD` | Number of failures before opening circuit |
+| `circuit_breaker_recovery_time` | `CODEGEN_CIRCUIT_BREAKER_RECOVERY_TIME` | Time to wait before recovery attempt (seconds) |

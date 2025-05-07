@@ -12,6 +12,7 @@ import time
 import json
 import logging
 import re
+import random
 from typing import Dict, Any, Optional, List, Union, Callable
 from dataclasses import dataclass
 from enum import Enum
@@ -42,6 +43,87 @@ class TaskResult:
     error: Optional[str] = None
     raw_response: Optional[Dict[str, Any]] = None
 
+class CircuitBreakerState(Enum):
+    """Enum representing the states of the circuit breaker."""
+    CLOSED = "closed"  # Normal operation, requests are allowed
+    OPEN = "open"      # Failure threshold exceeded, requests are blocked
+    HALF_OPEN = "half_open"  # Testing if service is back to normal
+
+class CircuitBreaker:
+    """
+    Implements the circuit breaker pattern to prevent repeated calls to a failing service.
+    
+    This helps avoid overwhelming a service that is already struggling and gives it time to recover.
+    """
+    
+    def __init__(
+        self,
+        failure_threshold: int = 5,
+        recovery_timeout: float = 60.0,
+        name: str = "codegen-api"
+    ):
+        """
+        Initialize the circuit breaker.
+        
+        Args:
+            failure_threshold: Number of consecutive failures before opening the circuit
+            recovery_timeout: Time in seconds to wait before trying to recover (half-open state)
+            name: Name of this circuit breaker for logging
+        """
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.name = name
+        self.state = CircuitBreakerState.CLOSED
+        self.failure_count = 0
+        self.last_failure_time = 0
+        
+    def allow_request(self) -> bool:
+        """
+        Check if a request should be allowed based on the current circuit state.
+        
+        Returns:
+            True if the request should be allowed, False otherwise
+        """
+        now = time.time()
+        
+        if self.state == CircuitBreakerState.CLOSED:
+            return True
+            
+        if self.state == CircuitBreakerState.OPEN:
+            # Check if recovery timeout has elapsed
+            if now - self.last_failure_time >= self.recovery_timeout:
+                logger.info(f"Circuit {self.name} transitioning from OPEN to HALF_OPEN")
+                self.state = CircuitBreakerState.HALF_OPEN
+                return True
+            return False
+            
+        if self.state == CircuitBreakerState.HALF_OPEN:
+            # In half-open state, allow only one request to test the service
+            return True
+            
+        return False
+        
+    def record_success(self) -> None:
+        """Record a successful request and reset the circuit if needed."""
+        if self.state == CircuitBreakerState.HALF_OPEN:
+            logger.info(f"Circuit {self.name} recovered, transitioning to CLOSED")
+            self.state = CircuitBreakerState.CLOSED
+            self.failure_count = 0
+            
+    def record_failure(self) -> None:
+        """Record a failed request and potentially open the circuit."""
+        self.last_failure_time = time.time()
+        
+        if self.state == CircuitBreakerState.HALF_OPEN:
+            logger.warning(f"Circuit {self.name} failed in HALF_OPEN state, returning to OPEN")
+            self.state = CircuitBreakerState.OPEN
+            return
+            
+        self.failure_count += 1
+        if self.state == CircuitBreakerState.CLOSED and self.failure_count >= self.failure_threshold:
+            logger.warning(f"Circuit {self.name} threshold reached ({self.failure_count} failures), transitioning to OPEN")
+            self.state = CircuitBreakerState.OPEN
+
 class CodegenClient:
     """
     A client for interacting with the Codegen API.
@@ -59,7 +141,10 @@ class CodegenClient:
         retry_delay: float = 2.0,
         polling_interval: float = 10.0,
         polling_timeout: float = 300.0,
-        auto_install: bool = True
+        request_timeout: float = 30.0,
+        auto_install: bool = True,
+        circuit_breaker_threshold: int = 5,
+        circuit_breaker_recovery_time: float = 60.0
     ):
         """
         Initialize the Codegen client.
@@ -71,20 +156,31 @@ class CodegenClient:
             retry_delay: Initial delay between retries (will be exponentially increased).
             polling_interval: Interval in seconds between polling for task status.
             polling_timeout: Maximum time in seconds to wait for a task to complete.
+            request_timeout: Timeout in seconds for individual API requests.
             auto_install: Whether to automatically install the Codegen SDK if not found.
+            circuit_breaker_threshold: Number of consecutive failures before opening the circuit.
+            circuit_breaker_recovery_time: Time in seconds to wait before trying to recover.
         """
-        self.api_key = api_key or os.environ.get("CODEGEN_TOKEN")
-        self.org_id = org_id or os.environ.get("CODEGEN_ORG_ID")
-        self.max_retries = max_retries
-        self.retry_delay = retry_delay
-        self.polling_interval = polling_interval
-        self.polling_timeout = polling_timeout
+        # Load configuration from environment variables if not provided
+        self.api_key = api_key or os.environ.get("CODEGEN_TOKEN") or os.environ.get("CODEGEN_API_KEY")
+        self.org_id = org_id or os.environ.get("CODEGEN_ORG_ID") or os.environ.get("CODEGEN_ORGANIZATION_ID")
+        self.max_retries = int(os.environ.get("CODEGEN_MAX_RETRIES", max_retries))
+        self.retry_delay = float(os.environ.get("CODEGEN_RETRY_DELAY", retry_delay))
+        self.polling_interval = float(os.environ.get("CODEGEN_POLLING_INTERVAL", polling_interval))
+        self.polling_timeout = float(os.environ.get("CODEGEN_POLLING_TIMEOUT", polling_timeout))
+        self.request_timeout = float(os.environ.get("CODEGEN_REQUEST_TIMEOUT", request_timeout))
         
         if not self.api_key:
-            raise ValueError("Codegen API key is required. Provide it as an argument or set the CODEGEN_TOKEN environment variable.")
+            raise ValueError("Codegen API key is required. Provide it as an argument or set the CODEGEN_TOKEN or CODEGEN_API_KEY environment variable.")
         
         if not self.org_id:
-            raise ValueError("Codegen organization ID is required. Provide it as an argument or set the CODEGEN_ORG_ID environment variable.")
+            raise ValueError("Codegen organization ID is required. Provide it as an argument or set the CODEGEN_ORG_ID or CODEGEN_ORGANIZATION_ID environment variable.")
+        
+        # Initialize the circuit breaker
+        self.circuit_breaker = CircuitBreaker(
+            failure_threshold=int(os.environ.get("CODEGEN_CIRCUIT_BREAKER_THRESHOLD", circuit_breaker_threshold)),
+            recovery_timeout=float(os.environ.get("CODEGEN_CIRCUIT_BREAKER_RECOVERY_TIME", circuit_breaker_recovery_time))
+        )
         
         # Initialize the Codegen Agent
         global Agent
@@ -105,6 +201,41 @@ class CodegenClient:
         self.agent = Agent(api_key=self.api_key, org_id=self.org_id)
         logger.info(f"Initialized Codegen client with org_id={self.org_id[:4]}***")
     
+    def _validate_prompt(self, prompt: str) -> None:
+        """
+        Validate the prompt before sending it to the API.
+        
+        Args:
+            prompt: The prompt to validate
+            
+        Raises:
+            ValueError: If the prompt is invalid
+        """
+        if not prompt:
+            raise ValueError("Prompt cannot be empty")
+        
+        if len(prompt) > 32000:  # Assuming a reasonable token limit
+            raise ValueError(f"Prompt is too long ({len(prompt)} characters). Maximum allowed is 32000 characters.")
+    
+    def _calculate_retry_delay(self, attempt: int, jitter: bool = True) -> float:
+        """
+        Calculate the delay before the next retry attempt with exponential backoff.
+        
+        Args:
+            attempt: The current attempt number (0-based)
+            jitter: Whether to add random jitter to avoid thundering herd problem
+            
+        Returns:
+            The delay in seconds before the next retry
+        """
+        delay = self.retry_delay * (2 ** attempt)
+        
+        # Add jitter (random variation) to avoid all clients retrying at the same time
+        if jitter:
+            delay = delay * (0.5 + random.random())
+            
+        return delay
+    
     def run_task(
         self, 
         prompt: str, 
@@ -124,19 +255,43 @@ class CodegenClient:
         """
         logger.info("Starting Codegen task")
         
+        # Validate the prompt
+        try:
+            self._validate_prompt(prompt)
+        except ValueError as e:
+            logger.error(f"Invalid prompt: {e}")
+            return TaskResult(
+                task_id="",
+                status=TaskStatus.FAILED,
+                error=str(e)
+            )
+        
+        # Check if the circuit breaker allows the request
+        if not self.circuit_breaker.allow_request():
+            logger.error("Circuit breaker is open, request blocked")
+            return TaskResult(
+                task_id="",
+                status=TaskStatus.FAILED,
+                error="Service is currently unavailable due to repeated failures. Please try again later."
+            )
+        
         # Run the task with retries
         task = None
         for attempt in range(self.max_retries):
             try:
                 task = self.agent.run(prompt=prompt)
+                # Record success in the circuit breaker
+                self.circuit_breaker.record_success()
                 break
             except Exception as e:
                 if attempt < self.max_retries - 1:
-                    delay = self.retry_delay * (2 ** attempt)  # Exponential backoff
+                    delay = self._calculate_retry_delay(attempt)
                     logger.warning(f"Error running Codegen task (attempt {attempt+1}/{self.max_retries}): {e}. Retrying in {delay:.1f}s...")
                     time.sleep(delay)
                 else:
                     logger.error(f"Failed to run Codegen task after {self.max_retries} attempts: {e}")
+                    # Record failure in the circuit breaker
+                    self.circuit_breaker.record_failure()
                     return TaskResult(
                         task_id="",
                         status=TaskStatus.FAILED,
@@ -144,6 +299,8 @@ class CodegenClient:
                     )
         
         if task is None:
+            # Record failure in the circuit breaker
+            self.circuit_breaker.record_failure()
             return TaskResult(
                 task_id="",
                 status=TaskStatus.FAILED,
