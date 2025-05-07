@@ -19,6 +19,8 @@ except ImportError:
     print("Codegen SDK not found. Installing...")
     subprocess.check_call([sys.executable, "-m", "pip", "install", "codegen"])
     from codegen import Agent
+from code_agent.core.codegen_client import CodegenClient, TaskResult
+
 class IssueContext:
     """Collects and manages context for a GitHub issue."""
     
@@ -162,7 +164,7 @@ class IssueContext:
         if body:
             # Look for code blocks or technical terms
             import re
-            # Find words that look like code (camelCase, snake_case, etc.)
+            # Find words that look like code (camelCase, snake_case, etc. )
             code_like = re.findall(r'\b[a-zA-Z]+(?:[A-Z][a-z]+)+\b|\b[a-z]+(?:_[a-z]+)+\b', body)
             keywords.extend([w.lower() for w in code_like])
             
@@ -399,40 +401,34 @@ def solve_issue(issue_number: int, task_type: str, org_id: str, token: str) -> O
         f.write(prompt)
     print(f"Prompt saved to {prompt_file}")
     
-    # Initialize Codegen agent
-    print(f"Initializing Codegen agent with org_id={org_id}")
+    # Initialize Codegen client
+    print(f"Initializing Codegen client with org_id={org_id}")
     try:
-        # Initialize the Agent with the organization ID and token
-        agent = Agent(org_id=org_id, token=token)
+        # Initialize the client with the organization ID and token
+        client = CodegenClient(api_key=token, org_id=org_id)
         
-        # Run the agent with the prompt
+        # Define a callback function to print status updates
+        def status_callback(task_result: TaskResult):
+            print(f"Task status: {task_result.status}")
+        
+        # Run the task with the prompt
         print("Creating Codegen task...")
-        task = agent.run(prompt=prompt)
+        task_result = client.run_task(
+            prompt=prompt,
+            wait_for_completion=True,
+            callback=status_callback
+        )
         
-        # Print task information
-        print(f"Task created with ID: {task.id}")
-        print(f"Initial status: {task.status}")
-        
-        # Monitor task status
-        max_retries = 30
-        for i in range(max_retries):
-            # Refresh task status
-            task.refresh()
+        # Check the task result
+        if task_result.status.value == "completed":
+            print(f"Task completed successfully!")
+            return task_result.task_id
+        else:
+            print(f"Task failed: {task_result.error}")
+            return None
             
-            if task.status == "completed":
-                print(f"Task completed successfully!")
-                return task.id
-            elif task.status == "failed":
-                print(f"Task failed: {task.error}")
-                return None
-            else:
-                print(f"Task status: {task.status}. Waiting...")
-                time.sleep(10)  # Wait 10 seconds before checking again
-        
-        print("Task timed out. Please check the Codegen dashboard for status.")
-        return task.id
     except Exception as e:
-        print(f"Error running Codegen agent: {e}")
+        print(f"Error running Codegen client: {e}")
         return None
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Solve GitHub issues using Codegen")

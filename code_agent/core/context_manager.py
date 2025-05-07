@@ -1,16 +1,22 @@
 #!/usr/bin/env python
 """
 Context Manager for Codegen Workflows
-This utility helps collect, manage, and pass context between GitHub Actions workflows
+
+This module provides a context manager for collecting, managing,
 and Codegen API calls, ensuring rich context for AI agents to work with.
 """
+
 import os
 import sys
 import json
 import argparse
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union, Tuple
+
+# Import our improved Codegen client
+from code_agent.core.codegen_client import CodegenClient
+
 class CodegenContext:
     """Manages context collection and handling for Codegen API calls."""
     
