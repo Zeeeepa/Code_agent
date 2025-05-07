@@ -90,16 +90,20 @@ class CodegenClient:
         global Agent
         if Agent is None and auto_install:
             logger.info("Codegen SDK not found. Installing...")
-            import subprocess
-            import sys
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "codegen"])
-            from codegen import Agent
+            try:
+                import subprocess
+                import sys
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "codegen"])
+                from codegen import Agent
+            except (subprocess.SubprocessError, ImportError) as e:
+                logger.error(f"Failed to auto-install Codegen SDK: {e}")
+                raise ImportError(f"Failed to auto-install Codegen SDK: {e}. Please install it manually with 'pip install codegen'.")
         
         if Agent is None:
             raise ImportError("Failed to import Codegen SDK. Please install it manually with 'pip install codegen'.")
         
         self.agent = Agent(api_key=self.api_key, org_id=self.org_id)
-        logger.info(f"Initialized Codegen client with org_id={self.org_id}")
+        logger.info(f"Initialized Codegen client with org_id={self.org_id[:4]}***")
     
     def run_task(
         self, 
@@ -220,26 +224,30 @@ class CodegenClient:
         # Store the raw result for debugging
         raw_result = result.result
         
+        # Filter out lines starting with '#'
+        filtered_result = '\n'.join([line for line in raw_result.split('\n') if not line.strip().startswith('#')])
+        
         # Try to extract JSON from markdown code blocks
-        json_match = re.search(r'```json\s*\n(.*?)\n\s*```', raw_result, re.DOTALL)
+        json_match = re.search(r'```json\s*\n(.*?)\n\s*```', filtered_result, re.DOTALL)
         if json_match:
             try:
                 return json.loads(json_match.group(1))
-            except json.JSONDecodeError:
-                logger.warning("Failed to parse JSON from code block")
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse JSON from code block: {e}")
         
         # Try to find any JSON object in the result
-        json_match = re.search(r'({.*})', raw_result, re.DOTALL)
+        json_match = re.search(r'({.*})', filtered_result, re.DOTALL)
         if json_match:
             try:
                 return json.loads(json_match.group(1))
-            except json.JSONDecodeError:
-                logger.warning("Failed to parse JSON from matched object")
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse JSON from matched object: {e}")
         
         # Last resort: try to parse the whole result as JSON
         try:
-            return json.loads(raw_result)
-        except json.JSONDecodeError:
-            logger.error("Failed to parse JSON from result")
-            raise ValueError(f"Failed to parse JSON from result: {raw_result[:100]}...")
-
+            return json.loads(filtered_result)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON from result: {e}")
+            # Include more context in the error message for better debugging
+            preview = filtered_result[:500] + ('...' if len(filtered_result) > 500 else '')
+            raise ValueError(f"Failed to parse JSON from result: {e}. Preview: {preview}")
