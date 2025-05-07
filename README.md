@@ -7,6 +7,7 @@ An AI-powered code agent for GitHub repositories that helps automate development
 - **Issue Solver**: Automatically analyze and solve GitHub issues
 - **Context Manager**: Collect and manage context for AI-powered code generation
 - **CI/CD Workflow**: Automate development workflows with GitHub and ngrok
+- **Robust Codegen Client**: Enhanced client for interacting with the Codegen API
 
 ## Installation
 
@@ -104,6 +105,7 @@ code_agent/
 ├── demo.py             # Demo script
 └── core/               # Core functionality
     ├── __init__.py
+    ├── codegen_client.py  # Enhanced Codegen API client
     ├── config.py       # Configuration management
     ├── context_manager.py  # Context collection and management
     ├── integration.py  # Integration with external services
@@ -143,6 +145,47 @@ Required environment variables:
 - `CODEGEN_TOKEN`: CodeGen API token
 - `CODEGEN_ORG_ID`: CodeGen organization ID
 - `NGROK_TOKEN`: ngrok authentication token (for webhook exposure)
+
+## Enhanced Codegen Client
+
+The enhanced Codegen client (`code_agent.core.codegen_client.CodegenClient`) provides a robust interface for interacting with the Codegen API:
+
+- **Improved Error Handling**: Robust exception handling with retries and exponential backoff
+- **Asynchronous Processing**: Better polling mechanism with configurable intervals and timeouts
+- **Enhanced Response Parsing**: Improved JSON parsing with support for various response formats
+- **Type Safety**: Full type annotations for better IDE support and code quality
+- **Comprehensive Logging**: Detailed logging of API interactions for debugging
+
+Example usage:
+
+```python
+from code_agent.core.codegen_client import CodegenClient
+
+# Initialize the client
+client = CodegenClient(
+    api_key="your-api-key",
+    org_id="your-org-id"
+)
+
+# Run a task with a prompt
+task_result = client.run_task(
+    prompt="Your prompt here",
+    wait_for_completion=True
+)
+
+# Check the result
+if task_result.status.value == "completed":
+    print(f"Task completed successfully: {task_result.result}")
+else:
+    print(f"Task failed: {task_result.error}")
+
+# Parse JSON from the result
+try:
+    result_json = client.parse_json_result(task_result)
+    print(f"Parsed JSON: {result_json}")
+except ValueError as e:
+    print(f"Failed to parse JSON: {e}")
+```
 
 ## License
 

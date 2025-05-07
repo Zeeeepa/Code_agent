@@ -321,13 +321,14 @@ class CodeGenManager:
     
     def __init__(self, config: Configuration):
         self.config = config
-        # Initialize the Codegen Agent with API key and organization ID
-        self.agent = Agent(
+        # Initialize the Codegen client with API key and organization ID
+        from code_agent.core.codegen_client import CodegenClient
+        self.client = CodegenClient(
             api_key=config.codegen_token,
             org_id=config.codegen_org_id
         )
-        logger.info("Initialized CodeGen agent")
-        
+        logger.info("Initialized CodeGen client")
+    
     def analyze_requirements(self, requirements: str) -> Dict:
         """Analyze requirements and suggest code changes."""
         prompt = f"""
@@ -345,21 +346,14 @@ class CodeGenManager:
         """
         
         try:
-            task = self.agent.run(prompt=prompt)
-            max_retries = 30
-            for i in range(max_retries):
-                task.refresh()
-                if task.status == "completed":
-                    logger.info("Requirements analysis completed")
-                    return {"success": True, "result": task.result}
-                elif task.status == "failed":
-                    logger.error(f"Requirements analysis failed: {task.error}")
-                    return {"success": False, "error": task.error}
-                else:
-                    time.sleep(10)  # Wait 10 seconds before checking again
+            task_result = self.client.run_task(prompt=prompt)
             
-            logger.error("Requirements analysis timed out")
-            return {"success": False, "error": "Timeout waiting for analysis"}
+            if task_result.status.value == "completed":
+                logger.info("Requirements analysis completed")
+                return {"success": True, "result": task_result.result}
+            else:
+                logger.error(f"Requirements analysis failed: {task_result.error}")
+                return {"success": False, "error": task_result.error}
         except Exception as e:
             logger.error(f"Error in requirements analysis: {str(e)}")
             return {"success": False, "error": str(e)}
@@ -391,41 +385,20 @@ class CodeGenManager:
         """
         
         try:
-            task = self.agent.run(prompt=prompt)
-            max_retries = 30
-            for i in range(max_retries):
-                task.refresh()
-                if task.status == "completed":
-                    logger.info("PR changes generation completed")
-                    result = task.result
-                    try:
-                        # Extract JSON from CodeGen result (which might contain explanatory text)
-                        import re
-                        json_match = re.search(r'```json\n(.*?)\n```', result, re.DOTALL)
-                        if json_match:
-                            result_json = json.loads(json_match.group(1))
-                        else:
-                            # Try to find any JSON object in the result
-                            json_match = re.search(r'({.*})', result, re.DOTALL)
-                            if json_match:
-                                result_json = json.loads(json_match.group(1))
-                            else:
-                                # Last resort: try to parse the whole result as JSON
-                                result_json = json.loads(result)
-                        
-                        return {"success": True, "result": result_json}
-                    except Exception as json_e:
-                        logger.error(f"Failed to parse JSON from CodeGen result: {str(json_e)}")
-                        return {"success": False, "error": f"JSON parsing error: {str(json_e)}", "raw_result": result}
-                        
-                elif task.status == "failed":
-                    logger.error(f"PR changes generation failed: {task.error}")
-                    return {"success": False, "error": task.error}
-                else:
-                    time.sleep(10)
+            task_result = self.client.run_task(prompt=prompt)
             
-            logger.error("PR changes generation timed out")
-            return {"success": False, "error": "Timeout waiting for code generation"}
+            if task_result.status.value == "completed":
+                logger.info("PR changes generation completed")
+                try:
+                    # Parse JSON from the result
+                    result_json = self.client.parse_json_result(task_result)
+                    return {"success": True, "result": result_json}
+                except ValueError as json_e:
+                    logger.error(f"Failed to parse JSON from CodeGen result: {str(json_e)}")
+                    return {"success": False, "error": f"JSON parsing error: {str(json_e)}", "raw_result": task_result.result}
+            else:
+                logger.error(f"PR changes generation failed: {task_result.error}")
+                return {"success": False, "error": task_result.error}
         except Exception as e:
             logger.error(f"Error in PR changes generation: {str(e)}")
             return {"success": False, "error": str(e)}
@@ -460,41 +433,20 @@ class CodeGenManager:
         """
         
         try:
-            task = self.agent.run(prompt=prompt)
-            max_retries = 30
-            for i in range(max_retries):
-                task.refresh()
-                if task.status == "completed":
-                    logger.info("PR review completed")
-                    result = task.result
-                    try:
-                        # Extract JSON from CodeGen result
-                        import re
-                        json_match = re.search(r'```json\n(.*?)\n```', result, re.DOTALL)
-                        if json_match:
-                            result_json = json.loads(json_match.group(1))
-                        else:
-                            # Try to find any JSON object in the result
-                            json_match = re.search(r'({.*})', result, re.DOTALL)
-                            if json_match:
-                                result_json = json.loads(json_match.group(1))
-                            else:
-                                # Last resort: try to parse the whole result as JSON
-                                result_json = json.loads(result)
-                        
-                        return {"success": True, "result": result_json}
-                    except Exception as json_e:
-                        logger.error(f"Failed to parse JSON from PR review result: {str(json_e)}")
-                        return {"success": False, "error": f"JSON parsing error: {str(json_e)}", "raw_result": result}
-                        
-                elif task.status == "failed":
-                    logger.error(f"PR review failed: {task.error}")
-                    return {"success": False, "error": task.error}
-                else:
-                    time.sleep(10)
+            task_result = self.client.run_task(prompt=prompt)
             
-            logger.error("PR review timed out")
-            return {"success": False, "error": "Timeout waiting for PR review"}
+            if task_result.status.value == "completed":
+                logger.info("PR review completed")
+                try:
+                    # Parse JSON from the result
+                    result_json = self.client.parse_json_result(task_result)
+                    return {"success": True, "result": result_json}
+                except ValueError as json_e:
+                    logger.error(f"Failed to parse JSON from PR review result: {str(json_e)}")
+                    return {"success": False, "error": f"JSON parsing error: {str(json_e)}", "raw_result": task_result.result}
+            else:
+                logger.error(f"PR review failed: {task_result.error}")
+                return {"success": False, "error": task_result.error}
         except Exception as e:
             logger.error(f"Error in PR review: {str(e)}")
             return {"success": False, "error": str(e)}
@@ -522,41 +474,33 @@ class CodeGenManager:
         """
         
         try:
-            task = self.agent.run(prompt=prompt)
-            max_retries = 30
-            for i in range(max_retries):
-                task.refresh()
-                if task.status == "completed":
-                    logger.info("Test creation completed")
-                    result = task.result
-                    try:
-                        # Extract JSON from CodeGen result
-                        import re
-                        json_match = re.search(r'```json\n(.*?)\n```', result, re.DOTALL)
+            task_result = self.client.run_task(prompt=prompt)
+            
+            if task_result.status.value == "completed":
+                logger.info("Test creation completed")
+                result = task_result.result
+                try:
+                    # Extract JSON from CodeGen result
+                    import re
+                    json_match = re.search(r'```json\n(.*?)\n```', result, re.DOTALL)
+                    if json_match:
+                        result_json = json.loads(json_match.group(1))
+                    else:
+                        # Try to find any JSON object in the result
+                        json_match = re.search(r'({.*})', result, re.DOTALL)
                         if json_match:
                             result_json = json.loads(json_match.group(1))
                         else:
-                            # Try to find any JSON object in the result
-                            json_match = re.search(r'({.*})', result, re.DOTALL)
-                            if json_match:
-                                result_json = json.loads(json_match.group(1))
-                            else:
-                                # Last resort: try to parse the whole result as JSON
-                                result_json = json.loads(result)
+                            # Last resort: try to parse the whole result as JSON
+                            result_json = json.loads(result)
                         
                         return {"success": True, "result": result_json}
-                    except Exception as json_e:
-                        logger.error(f"Failed to parse JSON from test creation result: {str(json_e)}")
-                        return {"success": False, "error": f"JSON parsing error: {str(json_e)}", "raw_result": result}
-                        
-                elif task.status == "failed":
-                    logger.error(f"Test creation failed: {task.error}")
-                    return {"success": False, "error": task.error}
-                else:
-                    time.sleep(10)
-            
-            logger.error("Test creation timed out")
-            return {"success": False, "error": "Timeout waiting for test creation"}
+                except Exception as json_e:
+                    logger.error(f"Failed to parse JSON from test creation result: {str(json_e)}")
+                    return {"success": False, "error": f"JSON parsing error: {str(json_e)}", "raw_result": result}
+            else:
+                logger.error(f"Test creation failed: {task_result.error}")
+                return {"success": False, "error": task_result.error}
         except Exception as e:
             logger.error(f"Error in test creation: {str(e)}")
             return {"success": False, "error": str(e)}
@@ -586,41 +530,20 @@ class CodeGenManager:
         """
         
         try:
-            task = self.agent.run(prompt=prompt)
-            max_retries = 30
-            for i in range(max_retries):
-                task.refresh()
-                if task.status == "completed":
-                    logger.info("Deployment log analysis completed")
-                    result = task.result
-                    try:
-                        # Extract JSON from CodeGen result
-                        import re
-                        json_match = re.search(r'```json\n(.*?)\n```', result, re.DOTALL)
-                        if json_match:
-                            result_json = json.loads(json_match.group(1))
-                        else:
-                            # Try to find any JSON object in the result
-                            json_match = re.search(r'({.*})', result, re.DOTALL)
-                            if json_match:
-                                result_json = json.loads(json_match.group(1))
-                            else:
-                                # Last resort: try to parse the whole result as JSON
-                                result_json = json.loads(result)
-                        
-                        return {"success": True, "result": result_json}
-                    except Exception as json_e:
-                        logger.error(f"Failed to parse JSON from log analysis result: {str(json_e)}")
-                        return {"success": False, "error": f"JSON parsing error: {str(json_e)}", "raw_result": result}
-                        
-                elif task.status == "failed":
-                    logger.error(f"Deployment log analysis failed: {task.error}")
-                    return {"success": False, "error": task.error}
-                else:
-                    time.sleep(10)
+            task_result = self.client.run_task(prompt=prompt)
             
-            logger.error("Deployment log analysis timed out")
-            return {"success": False, "error": "Timeout waiting for log analysis"}
+            if task_result.status.value == "completed":
+                logger.info("Deployment log analysis completed")
+                try:
+                    # Parse JSON from the result
+                    result_json = self.client.parse_json_result(task_result)
+                    return {"success": True, "result": result_json}
+                except ValueError as json_e:
+                    logger.error(f"Failed to parse JSON from log analysis result: {str(json_e)}")
+                    return {"success": False, "error": f"JSON parsing error: {str(json_e)}", "raw_result": task_result.result}
+            else:
+                logger.error(f"Deployment log analysis failed: {task_result.error}")
+                return {"success": False, "error": task_result.error}
         except Exception as e:
             logger.error(f"Error in deployment log analysis: {str(e)}")
             return {"success": False, "error": str(e)}
@@ -640,21 +563,14 @@ class CodeGenManager:
         """
         
         try:
-            task = self.agent.run(prompt=prompt)
-            max_retries = 30
-            for i in range(max_retries):
-                task.refresh()
-                if task.status == "completed":
-                    logger.info("Requirements update completed")
-                    return {"success": True, "result": task.result}
-                elif task.status == "failed":
-                    logger.error(f"Requirements update failed: {task.error}")
-                    return {"success": False, "error": task.error}
-                else:
-                    time.sleep(10)
+            task_result = self.client.run_task(prompt=prompt)
             
-            logger.error("Requirements update timed out")
-            return {"success": False, "error": "Timeout waiting for requirements update"}
+            if task_result.status.value == "completed":
+                logger.info("Requirements update completed")
+                return {"success": True, "result": task_result.result}
+            else:
+                logger.error(f"Requirements update failed: {task_result.error}")
+                return {"success": False, "error": task_result.error}
         except Exception as e:
             logger.error(f"Error in requirements update: {str(e)}")
             return {"success": False, "error": str(e)}
