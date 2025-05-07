@@ -13,7 +13,8 @@ import json
 import logging
 import re
 import random
-from typing import Dict, Any, Optional, List, Union, Callable
+import requests
+from typing import Dict, Any, Optional, List, Union, Callable, Tuple
 from dataclasses import dataclass
 from enum import Enum
 
@@ -33,6 +34,13 @@ class TaskStatus(str, Enum):
     FAILED = "failed"
     CANCELLED = "cancelled"
     UNKNOWN = "unknown"
+
+class ReviewType(str, Enum):
+    """Enum representing different types of code reviews."""
+    STANDARD = "standard"
+    GEMINI = "gemini"
+    KORBIT = "korbit"
+    IMPROVE = "improve"
 
 @dataclass
 class TaskResult:
@@ -408,3 +416,311 @@ class CodegenClient:
             # Include more context in the error message for better debugging
             preview = filtered_result[:500] + ('...' if len(filtered_result) > 500 else '')
             raise ValueError(f"Failed to parse JSON from result: {e}. Preview: {preview}")
+    
+    def parse_review_command(self, command: str) -> Tuple[ReviewType, Dict[str, Any]]:
+        """
+        Parse a review command to determine the review type and options.
+        
+        Args:
+            command: The review command (e.g., "/review", "/gemini-review", "/korbit-review", "/improve")
+            
+        Returns:
+            A tuple of (ReviewType, options_dict)
+        """
+        command = command.strip().lower()
+        options = {}
+        
+        if command.startswith("/gemini"):
+            return ReviewType.GEMINI, options
+        elif command.startswith("/korbit"):
+            return ReviewType.KORBIT, options
+        elif command.startswith("/improve"):
+            return ReviewType.IMPROVE, options
+        else:
+            return ReviewType.STANDARD, options
+    
+    def generate_review_prompt(self, 
+                              review_type: ReviewType, 
+                              pr_data: Dict[str, Any],
+                              options: Dict[str, Any] = None) -> str:
+        """
+        Generate a prompt for a code review based on the review type.
+        
+        Args:
+            review_type: The type of review to generate
+            pr_data: Data about the pull request to review
+            options: Additional options for the review
+            
+        Returns:
+            A prompt string for the Codegen API
+        """
+        options = options or {}
+        
+        # Extract PR details
+        pr_title = pr_data.get("title", "")
+        pr_description = pr_data.get("body", "")
+        pr_diff = pr_data.get("diff", "")
+        
+        # Base prompt for all review types
+        base_prompt = f"""
+        Please review the following pull request:
+        
+        Title: {pr_title}
+        
+        Description:
+        {pr_description}
+        
+        Changes:
+        {pr_diff}
+        """
+        
+        # Add specific instructions based on review type
+        if review_type == ReviewType.GEMINI:
+            return base_prompt + """
+            Perform a thorough code review focusing on:
+            1. Code correctness and potential bugs
+            2. Performance issues
+            3. Security vulnerabilities
+            4. Code style and best practices
+            5. Architecture and design patterns
+            
+            Format your review as a list of comments, with each comment on a separate line.
+            Lines starting with '#' will be ignored.
+            """
+        elif review_type == ReviewType.KORBIT:
+            return base_prompt + """
+            Perform a security-focused code review looking for:
+            1. Security vulnerabilities
+            2. Potential data leaks
+            3. Authentication/authorization issues
+            4. Input validation problems
+            5. Secure coding practices
+            
+            Format your review as a list of comments, with each comment on a separate line.
+            Lines starting with '#' will be ignored.
+            """
+        elif review_type == ReviewType.IMPROVE:
+            return base_prompt + """
+            Suggest improvements to the code focusing on:
+            1. Code quality and readability
+            2. Performance optimizations
+            3. Better design patterns
+            4. Reducing complexity
+            5. Enhancing maintainability
+            
+            Format your suggestions as a list of comments, with each comment on a separate line.
+            Lines starting with '#' will be ignored.
+            """
+        else:  # ReviewType.STANDARD
+            return base_prompt + """
+            Perform a general code review focusing on:
+            1. Code correctness
+            2. Readability and maintainability
+            3. Adherence to best practices
+            4. Potential issues or bugs
+            
+            Format your review as a list of comments, with each comment on a separate line.
+            Lines starting with '#' will be ignored.
+            """
+    
+    def review_pull_request(self,
+                           repo_owner: str,
+                           repo_name: str,
+                           pr_number: int,
+                           review_command: str,
+                           github_token: Optional[str] = None,
+                           wait_for_completion: bool = True) -> Dict[str, Any]:
+        """
+        Review a GitHub pull request using the specified review command.
+        
+        Args:
+            repo_owner: GitHub repository owner (username or organization)
+            repo_name: GitHub repository name
+            pr_number: Pull request number
+            review_command: The review command (e.g., "/review", "/gemini-review")
+            github_token: GitHub token for authentication. If not provided, will try to get from GITHUB_TOKEN env var.
+            wait_for_completion: Whether to wait for the review to complete
+            
+        Returns:
+            Dictionary with results of the review operation
+        """
+        token = github_token or os.environ.get("GITHUB_TOKEN")
+        if not token:
+            raise ValueError("GitHub token is required. Provide it as an argument or set the GITHUB_TOKEN environment variable.")
+        
+        # Parse the review command
+        review_type, options = self.parse_review_command(review_command)
+        
+        # Fetch PR data
+        try:
+            url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/pulls/{pr_number}"
+            headers = {
+                "Authorization": f"token {token}",
+                "Accept": "application/vnd.github.v3+json"
+            }
+            
+            response = requests.get(url, headers=headers, timeout=self.request_timeout)
+            response.raise_for_status()
+            pr_data = response.json()
+            
+            # Fetch PR diff
+            diff_url = f"{url}.diff"
+            diff_response = requests.get(diff_url, headers=headers, timeout=self.request_timeout)
+            diff_response.raise_for_status()
+            pr_data["diff"] = diff_response.text
+            
+        except requests.RequestException as e:
+            logger.error(f"Failed to fetch PR data: {e}")
+            return {
+                "status": "error",
+                "error": f"Failed to fetch PR data: {e}"
+            }
+        
+        # Generate review prompt
+        prompt = self.generate_review_prompt(review_type, pr_data, options)
+        
+        # Run the review task
+        task_result = self.run_task(prompt, wait_for_completion=wait_for_completion)
+        
+        if not wait_for_completion:
+            return {
+                "status": "pending",
+                "task_id": task_result.task_id,
+                "review_type": review_type.value
+            }
+        
+        if task_result.status != TaskStatus.COMPLETED:
+            return {
+                "status": "error",
+                "error": task_result.error or "Review task failed",
+                "task_id": task_result.task_id,
+                "review_type": review_type.value
+            }
+        
+        # Post the review comments
+        comment_results = self.parse_and_post_pr_comments(
+            task_result,
+            repo_owner,
+            repo_name,
+            pr_number,
+            github_token
+        )
+        
+        return {
+            "status": "completed",
+            "task_id": task_result.task_id,
+            "review_type": review_type.value,
+            "comments": comment_results
+        }
+    
+    def post_pr_comments(
+        self,
+        repo_owner: str,
+        repo_name: str,
+        pr_number: int,
+        comments: List[str],
+        github_token: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Post comments to a GitHub pull request, one comment per line.
+        
+        Args:
+            repo_owner: GitHub repository owner (username or organization)
+            repo_name: GitHub repository name
+            pr_number: Pull request number
+            comments: List of comments to post (one comment per line)
+            github_token: GitHub token for authentication. If not provided, will try to get from GITHUB_TOKEN env var.
+            
+        Returns:
+            Dictionary with results of the comment posting operation
+        """
+        token = github_token or os.environ.get("GITHUB_TOKEN")
+        if not token:
+            raise ValueError("GitHub token is required. Provide it as an argument or set the GITHUB_TOKEN environment variable.")
+        
+        # Filter out empty comments and comments starting with #
+        filtered_comments = [comment for comment in comments if comment.strip() and not comment.strip().startswith('#')]
+        
+        if not filtered_comments:
+            logger.warning("No valid comments to post after filtering")
+            return {"status": "skipped", "reason": "No valid comments to post"}
+        
+        results = []
+        for comment in filtered_comments:
+            try:
+                # Post the comment to the PR
+                url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/issues/{pr_number}/comments"
+                headers = {
+                    "Authorization": f"token {token}",
+                    "Accept": "application/vnd.github.v3+json"
+                }
+                data = {"body": comment}
+                
+                response = requests.post(url, headers=headers, json=data, timeout=self.request_timeout)
+                response.raise_for_status()
+                
+                results.append({
+                    "status": "success",
+                    "comment_id": response.json().get("id"),
+                    "comment": comment
+                })
+                
+                logger.info(f"Posted comment to PR #{pr_number}: {comment[:50]}...")
+                
+                # Add a small delay to avoid rate limiting
+                time.sleep(1)
+                
+            except requests.RequestException as e:
+                logger.error(f"Failed to post comment to PR #{pr_number}: {e}")
+                results.append({
+                    "status": "error",
+                    "error": str(e),
+                    "comment": comment
+                })
+        
+        return {
+            "status": "completed",
+            "total_comments": len(filtered_comments),
+            "successful_comments": sum(1 for r in results if r["status"] == "success"),
+            "failed_comments": sum(1 for r in results if r["status"] == "error"),
+            "results": results
+        }
+    
+    def parse_and_post_pr_comments(
+        self,
+        result: TaskResult,
+        repo_owner: str,
+        repo_name: str,
+        pr_number: int,
+        github_token: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Parse the result of a task and post comments to a GitHub pull request.
+        
+        This method will split the result into lines and post each line as a separate comment,
+        ignoring lines that start with '#'.
+        
+        Args:
+            result: The TaskResult to parse
+            repo_owner: GitHub repository owner (username or organization)
+            repo_name: GitHub repository name
+            pr_number: Pull request number
+            github_token: GitHub token for authentication. If not provided, will try to get from GITHUB_TOKEN env var.
+            
+        Returns:
+            Dictionary with results of the comment posting operation
+        """
+        if not result.result:
+            raise ValueError("Task result is empty")
+        
+        # Split the result into lines
+        lines = result.result.split('\n')
+        
+        # Post the comments
+        return self.post_pr_comments(
+            repo_owner=repo_owner,
+            repo_name=repo_name,
+            pr_number=pr_number,
+            comments=lines,
+            github_token=github_token
+        )

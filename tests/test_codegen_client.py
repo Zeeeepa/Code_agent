@@ -7,8 +7,9 @@ from unittest.mock import patch, MagicMock
 import json
 import os
 import time
+import requests
 
-from code_agent.core.codegen_client import CodegenClient, TaskStatus, TaskResult, CircuitBreaker, CircuitBreakerState
+from code_agent.core.codegen_client import CodegenClient, TaskStatus, TaskResult, CircuitBreaker, CircuitBreakerState, ReviewType
 
 class TestCircuitBreaker(unittest.TestCase):
     """Test cases for the CircuitBreaker class."""
@@ -411,6 +412,222 @@ class TestCodegenClient(unittest.TestCase):
         # Try to parse the JSON (should raise an error)
         with self.assertRaises(ValueError):
             self.client.parse_json_result(task_result)
+
+class TestPRReviewFunctionality(unittest.TestCase):
+    """Test cases for the PR review functionality."""
+    
+    def setUp(self):
+        """Set up test environment."""
+        # Mock environment variables
+        self.env_patcher = patch.dict(os.environ, {
+            "CODEGEN_TOKEN": "test-token",
+            "CODEGEN_ORG_ID": "test-org-id",
+            "GITHUB_TOKEN": "test-github-token"
+        })
+        self.env_patcher.start()
+        
+        # Mock the Agent class
+        self.agent_patcher = patch('code_agent.core.codegen_client.Agent')
+        self.mock_agent_class = self.agent_patcher.start()
+        self.mock_agent = MagicMock()
+        self.mock_agent_class.return_value = self.mock_agent
+        
+        # Mock requests
+        self.requests_patcher = patch('code_agent.core.codegen_client.requests')
+        self.mock_requests = self.requests_patcher.start()
+        
+        # Create a client instance
+        self.client = CodegenClient(
+            polling_interval=0.1,  # Use small values for testing
+            polling_timeout=1.0
+        )
+    
+    def tearDown(self):
+        """Clean up after tests."""
+        self.env_patcher.stop()
+        self.agent_patcher.stop()
+        self.requests_patcher.stop()
+    
+    def test_parse_review_command(self):
+        """Test parsing different review commands."""
+        # Test standard review
+        review_type, options = self.client.parse_review_command("/review")
+        self.assertEqual(review_type, ReviewType.STANDARD)
+        
+        # Test Gemini review
+        review_type, options = self.client.parse_review_command("/gemini-review")
+        self.assertEqual(review_type, ReviewType.GEMINI)
+        
+        # Test Korbit review
+        review_type, options = self.client.parse_review_command("/korbit-review")
+        self.assertEqual(review_type, ReviewType.KORBIT)
+        
+        # Test improve command
+        review_type, options = self.client.parse_review_command("/improve")
+        self.assertEqual(review_type, ReviewType.IMPROVE)
+        
+        # Test with whitespace
+        review_type, options = self.client.parse_review_command("  /gemini-review  ")
+        self.assertEqual(review_type, ReviewType.GEMINI)
+        
+        # Test with uppercase
+        review_type, options = self.client.parse_review_command("/GEMINI-REVIEW")
+        self.assertEqual(review_type, ReviewType.GEMINI)
+    
+    def test_generate_review_prompt(self):
+        """Test generating review prompts for different review types."""
+        pr_data = {
+            "title": "Test PR",
+            "body": "This is a test PR",
+            "diff": "diff --git a/test.py b/test.py\n..."
+        }
+        
+        # Test standard review prompt
+        prompt = self.client.generate_review_prompt(ReviewType.STANDARD, pr_data)
+        self.assertIn("Test PR", prompt)
+        self.assertIn("This is a test PR", prompt)
+        self.assertIn("general code review", prompt.lower())
+        
+        # Test Gemini review prompt
+        prompt = self.client.generate_review_prompt(ReviewType.GEMINI, pr_data)
+        self.assertIn("Test PR", prompt)
+        self.assertIn("thorough code review", prompt.lower())
+        self.assertIn("security vulnerabilities", prompt.lower())
+        
+        # Test Korbit review prompt
+        prompt = self.client.generate_review_prompt(ReviewType.KORBIT, pr_data)
+        self.assertIn("Test PR", prompt)
+        self.assertIn("security-focused", prompt.lower())
+        self.assertIn("authentication/authorization", prompt.lower())
+        
+        # Test improve prompt
+        prompt = self.client.generate_review_prompt(ReviewType.IMPROVE, pr_data)
+        self.assertIn("Test PR", prompt)
+        self.assertIn("suggest improvements", prompt.lower())
+        self.assertIn("performance optimizations", prompt.lower())
+    
+    def test_post_pr_comments(self):
+        """Test posting comments to a PR."""
+        # Mock successful response
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"id": 12345}
+        self.mock_requests.post.return_value = mock_response
+        
+        # Test posting comments
+        result = self.client.post_pr_comments(
+            repo_owner="test-owner",
+            repo_name="test-repo",
+            pr_number=1,
+            comments=["Comment 1", "# Comment 2 (should be ignored)", "Comment 3"]
+        )
+        
+        # Check that the correct number of comments were posted
+        self.assertEqual(result["total_comments"], 2)
+        self.assertEqual(result["successful_comments"], 2)
+        self.assertEqual(result["failed_comments"], 0)
+        
+        # Check that the correct API calls were made
+        self.assertEqual(self.mock_requests.post.call_count, 2)
+        self.mock_requests.post.assert_any_call(
+            "https://api.github.com/repos/test-owner/test-repo/issues/1/comments",
+            headers={
+                "Authorization": "token test-github-token",
+                "Accept": "application/vnd.github.v3+json"
+            },
+            json={"body": "Comment 1"},
+            timeout=self.client.request_timeout
+        )
+    
+    def test_parse_and_post_pr_comments(self):
+        """Test parsing and posting comments from a task result."""
+        # Mock successful response
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"id": 12345}
+        self.mock_requests.post.return_value = mock_response
+        
+        # Create a task result
+        task_result = TaskResult(
+            task_id="test-task-id",
+            status=TaskStatus.COMPLETED,
+            result="Comment 1\n# Comment 2 (should be ignored)\nComment 3"
+        )
+        
+        # Test parsing and posting comments
+        result = self.client.parse_and_post_pr_comments(
+            result=task_result,
+            repo_owner="test-owner",
+            repo_name="test-repo",
+            pr_number=1
+        )
+        
+        # Check that the correct number of comments were posted
+        self.assertEqual(result["total_comments"], 2)
+        self.assertEqual(result["successful_comments"], 2)
+        self.assertEqual(result["failed_comments"], 0)
+        
+        # Check that the correct API calls were made
+        self.assertEqual(self.mock_requests.post.call_count, 2)
+    
+    def test_review_pull_request(self):
+        """Test reviewing a pull request."""
+        # Mock PR data response
+        mock_pr_response = MagicMock()
+        mock_pr_response.json.return_value = {
+            "title": "Test PR",
+            "body": "This is a test PR"
+        }
+        
+        # Mock PR diff response
+        mock_diff_response = MagicMock()
+        mock_diff_response.text = "diff --git a/test.py b/test.py\n..."
+        
+        # Mock comment response
+        mock_comment_response = MagicMock()
+        mock_comment_response.json.return_value = {"id": 12345}
+        
+        # Configure mock requests
+        self.mock_requests.get.side_effect = [mock_pr_response, mock_diff_response]
+        self.mock_requests.post.return_value = mock_comment_response
+        
+        # Mock task
+        mock_task = MagicMock()
+        mock_task.id = "test-task-id"
+        mock_task.status = "completed"
+        mock_task.result = "Comment 1\n# Comment 2 (should be ignored)\nComment 3"
+        
+        # Configure the mock agent
+        self.mock_agent.run.return_value = mock_task
+        
+        # Test reviewing a PR
+        result = self.client.review_pull_request(
+            repo_owner="test-owner",
+            repo_name="test-repo",
+            pr_number=1,
+            review_command="/gemini-review"
+        )
+        
+        # Check the result
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(result["task_id"], "test-task-id")
+        self.assertEqual(result["review_type"], "gemini")
+        self.assertEqual(result["comments"]["total_comments"], 2)
+        
+        # Check that the correct API calls were made
+        self.mock_requests.get.assert_any_call(
+            "https://api.github.com/repos/test-owner/test-repo/pulls/1",
+            headers={
+                "Authorization": "token test-github-token",
+                "Accept": "application/vnd.github.v3+json"
+            },
+            timeout=self.client.request_timeout
+        )
+        
+        # Check that the agent was called with the correct prompt
+        self.mock_agent.run.assert_called_once()
+        prompt = self.mock_agent.run.call_args[1]["prompt"]
+        self.assertIn("Test PR", prompt)
+        self.assertIn("This is a test PR", prompt)
+        self.assertIn("thorough code review", prompt.lower())
 
 if __name__ == '__main__':
     unittest.main()

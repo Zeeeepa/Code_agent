@@ -159,6 +159,7 @@ The enhanced Codegen client (`code_agent.core.codegen_client.CodegenClient`) pro
 - **Request Validation**: Pre-request validation to catch common errors
 - **Flexible Configuration**: Support for environment variables and runtime configuration
 - **Rate Limiting Handling**: Smart retry logic with exponential backoff and jitter
+- **PR Review Functionality**: Support for different review types with line-by-line comments
 
 Example usage:
 
@@ -190,6 +191,36 @@ try:
 except ValueError as e:
     print(f"Failed to parse JSON: {e}")
 ```
+
+### PR Review Functionality
+
+The client includes support for reviewing GitHub pull requests with different review types:
+
+```python
+# Review a pull request
+review_result = client.review_pull_request(
+    repo_owner="owner",
+    repo_name="repo",
+    pr_number=123,
+    review_command="/gemini-review",
+    github_token="your-github-token"
+)
+
+# Post comments to a PR
+client.post_pr_comments(
+    repo_owner="owner",
+    repo_name="repo",
+    pr_number=123,
+    comments=["Comment 1", "Comment 2"],
+    github_token="your-github-token"
+)
+```
+
+Supported review commands:
+- `/review` - Standard code review
+- `/gemini-review` - Thorough code review with security focus
+- `/korbit-review` - Security-focused code review
+- `/improve` - Suggestions for code improvements
 
 ### Configuration Options
 
