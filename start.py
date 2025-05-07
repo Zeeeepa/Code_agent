@@ -3,9 +3,10 @@
 Code Agent Interactive Launcher
 
 This script provides an interactive menu to launch different Code Agent modes:
-1. Full Test Launch - Runs all tests to verify the installation
-2. Demo Launch - Runs the demo with a sample GitHub project
-3. Advanced Example - Runs with an actual GitHub project selected by the user
+1. Prompt Mode - Interact with Code Agent using natural language prompts
+2. Full Test Launch - Runs all tests to verify the installation
+3. Demo Launch - Runs the demo with a sample GitHub project
+4. Advanced Example - Runs with an actual GitHub project selected by the user
 
 Usage:
     python start.py
@@ -85,6 +86,84 @@ def load_env_file():
     else:
         print("No .env file found. Using existing environment variables.")
         return False
+
+def run_prompt_mode():
+    """Run the prompt-based interaction mode."""
+    from code_agent.core.prompt_handler import PROMPT_TEMPLATES, get_template_placeholders, fill_template, process_prompt, save_result
+    
+    print_header()
+    print("Prompt Mode - Interact with Code Agent using natural language\n")
+    
+    # Show available templates
+    print("Select a prompt template:")
+    templates = list(PROMPT_TEMPLATES.keys())
+    for i, template_name in enumerate(templates, 1):
+        print(f"{i}. {template_name.replace('_', ' ').title()}")
+    
+    # Get template choice
+    choice = input("\nEnter your choice (1-{}), or press Enter for custom prompt: ".format(len(templates))).strip()
+    
+    if not choice:
+        template_name = "custom"
+    else:
+        try:
+            template_index = int(choice) - 1
+            if 0 <= template_index < len(templates):
+                template_name = templates[template_index]
+            else:
+                print("Invalid choice. Using custom prompt.")
+                template_name = "custom"
+        except ValueError:
+            print("Invalid choice. Using custom prompt.")
+            template_name = "custom"
+    
+    # Get values for template placeholders
+    values = {}
+    if template_name == "custom":
+        print("\nEnter your custom prompt (press Ctrl+D or type 'EOF' on a new line when done):")
+        prompt_lines = []
+        while True:
+            try:
+                line = input()
+                if line.strip() == "EOF":
+                    break
+                prompt_lines.append(line)
+            except EOFError:
+                break
+        values["prompt"] = "\n".join(prompt_lines)
+    else:
+        placeholders = get_template_placeholders(template_name)
+        print(f"\nFill in the values for the {template_name.replace('_', ' ')} template:")
+        for placeholder in placeholders:
+            if placeholder == "code" or placeholder == "context" or placeholder == "error":
+                print(f"\nEnter {placeholder} (press Ctrl+D or type 'EOF' on a new line when done):")
+                lines = []
+                while True:
+                    try:
+                        line = input()
+                        if line.strip() == "EOF":
+                            break
+                        lines.append(line)
+                    except EOFError:
+                        break
+                values[placeholder] = "\n".join(lines)
+            else:
+                values[placeholder] = input(f"{placeholder.replace('_', ' ').title()}: ")
+    
+    # Fill the template
+    try:
+        prompt = fill_template(template_name, values)
+        
+        print("\nProcessing prompt with Codegen API...")
+        result = process_prompt(prompt)
+        
+        # Display the result
+        save_result(result)
+        
+    except Exception as e:
+        print(f"\nError: {str(e)}")
+    
+    input("\nPress Enter to return to the main menu...")
 
 def run_tests():
     """Run all tests to verify the installation."""
@@ -214,20 +293,23 @@ def main_menu():
     while True:
         print_header()
         print("Select an option:")
-        print("1. Full Test Launch - Run all tests to verify the installation")
-        print("2. Demo Launch - Run the demo with a sample GitHub project")
-        print("3. Advanced Example - Run with an actual GitHub project selected by the user")
-        print("4. Exit")
+        print("1. Prompt Mode - Interact with Code Agent using natural language")
+        print("2. Full Test Launch - Run all tests to verify the installation")
+        print("3. Demo Launch - Run the demo with a sample GitHub project")
+        print("4. Advanced Example - Run with an actual GitHub project selected by the user")
+        print("5. Exit")
         
-        choice = input("\nEnter your choice (1-4): ").strip()
+        choice = input("\nEnter your choice (1-5): ").strip()
         
         if choice == "1":
-            run_tests()
+            run_prompt_mode()
         elif choice == "2":
-            run_demo()
+            run_tests()
         elif choice == "3":
-            run_advanced_example()
+            run_demo()
         elif choice == "4":
+            run_advanced_example()
+        elif choice == "5":
             print("\nExiting Code Agent. Goodbye!")
             sys.exit(0)
         else:
@@ -249,4 +331,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
