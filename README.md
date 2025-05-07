@@ -57,21 +57,62 @@ make install-dev-test
 
 ### Command Line Interface
 
-After installation, you can use the `code-agent` command:
+After installation, you can use the `code-agent` command. If the command is not found in your PATH, you can use the Python module directly:
 
 ```bash
 # Show help
 code-agent --help
+# OR if command not found
+python -m code_agent --help
 
 # Run in issue mode
 code-agent --mode issue --issue-number 123 --task-type bug
+# OR
+python -m code_agent --mode issue --issue-number 123 --task-type bug
 
 # Run in context mode
 code-agent --mode context collect --issue 123 --output context.json
+# OR
+python -m code_agent --mode context collect --issue 123 --output context.json
 
 # Run in workflow mode
 code-agent --mode workflow --repo-name owner/repo
+# OR
+python -m code_agent --mode workflow --repo-name owner/repo
 ```
+
+### Troubleshooting CLI Command Not Found
+
+If the `code-agent` command is not found after installation:
+
+1. **Use the Python module directly**:
+   ```bash
+   python -m code_agent --help
+   ```
+
+2. **Find the CLI script location**:
+   ```bash
+   # On Linux/macOS
+   find ~/.local/bin /usr/local/bin -name code-agent
+   
+   # On Windows
+   where code-agent
+   ```
+
+3. **Add the directory to your PATH** if needed:
+   ```bash
+   # For Linux/macOS (add to ~/.bashrc or ~/.zshrc)
+   export PATH=$PATH:~/.local/bin
+   
+   # For Windows (add to system environment variables)
+   # Control Panel > System > Advanced System Settings > Environment Variables
+   ```
+
+4. **Use the local wrapper script** created during installation:
+   ```bash
+   # From the Code_agent directory
+   ./code-agent --help
+   ```
 
 ### Python Module
 
