@@ -19,47 +19,49 @@ def run_command(command):
         return False
     return True
 
-def find_cli_script():
-    """Find the CLI script in various possible locations."""
-    possible_locations = []
-    
-    # Check if we're in a virtual environment
-    in_venv = sys.prefix != sys.base_prefix
+def get_virtualenv_locations():
     bin_dir = "Scripts" if sys.platform == "win32" else "bin"
-    
-    # Add potential locations based on environment
-    if in_venv:
-        # Virtual environment locations
-        possible_locations.append(os.path.join(sys.prefix, bin_dir, "code-agent"))
+    locations = [os.path.join(sys.prefix, bin_dir, "code-agent")]
+    if sys.platform == "win32":
+        locations.append(os.path.join(sys.prefix, bin_dir, "code-agent.exe"))
+    return locations
+
+def get_system_locations():
+    bin_dir = "Scripts" if sys.platform == "win32" else "bin"
+    locations = []
+    import site
+    user_base = site.USER_BASE
+    if user_base:
+        user_bin = os.path.join(user_base, bin_dir, "code-agent")
+        locations.append(user_bin)
         if sys.platform == "win32":
-            possible_locations.append(os.path.join(sys.prefix, bin_dir, "code-agent.exe"))
-    else:
-        # User site-packages bin directory
-        user_bin_dir = site.USER_BASE
-        if user_bin_dir:
-            user_bin = os.path.join(user_bin_dir, bin_dir, "code-agent")
-            possible_locations.append(user_bin)
-            if sys.platform == "win32":
-                possible_locations.append(user_bin + ".exe")
-        
-        # System locations
-        possible_locations.append(os.path.expanduser("~/.local/bin/code-agent"))
-        possible_locations.append("/usr/local/bin/code-agent")
-        possible_locations.append("/usr/bin/code-agent")
-    
-    # Check for entry point scripts in site-packages
+            locations.append(user_bin + ".exe")
+    locations.extend([
+        os.path.expanduser("~/.local/bin/code-agent"),
+        "/usr/local/bin/code-agent",
+        "/usr/bin/code-agent"
+    ])
+    return locations
+
+def get_egg_link_locations():
+    locations = []
     for site_dir in site.getsitepackages() + [site.getusersitepackages()]:
         pattern = os.path.join(site_dir, "code_agent-*.egg-link")
         for egg_link in glob.glob(pattern):
             with open(egg_link, 'r') as f:
                 egg_path = f.readline().strip()
-                possible_locations.append(os.path.join(egg_path, "code_agent", "runner.py"))
-    
-    # Check if any of the locations exist
+                locations.append(os.path.join(egg_path, "code_agent", "runner.py"))
+    return locations
+
+def find_cli_script():
+    """Find the CLI script in various possible locations."""
+    possible_locations = []
+    in_venv = sys.prefix != sys.base_prefix
+    possible_locations.extend(get_virtualenv_locations() if in_venv else get_system_locations())
+    possible_locations.extend(get_egg_link_locations())
     for location in possible_locations:
         if os.path.exists(location):
             return location
-    
     return None
 
 def post_install():
@@ -74,7 +76,7 @@ def post_install():
         if sys.platform != "win32" and not cli_path.endswith(".py"):
             print("Making CLI script executable...")
             if not run_command(f"chmod +x {cli_path}"):
-                print(f"Failed to make CLI script executable.")
+                raise Exception(f"Failed to make CLI script executable: {cli_path}")
                 return False
             print(f"CLI script made executable.")
     else:
@@ -93,7 +95,9 @@ def post_install():
             f.write("    sys.exit(main())\n")
         
         if sys.platform != "win32":
-            run_command("chmod +x code-agent")
+            if not run_command("chmod +x code-agent"):
+                raise Exception("Failed to make local wrapper script executable")
+                return False
         
         print("Created local wrapper script 'code-agent' in the current directory.")
         cli_path = os.path.abspath("code-agent")
