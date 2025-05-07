@@ -14,8 +14,8 @@ def run_command(command):
     result = subprocess.run(command, shell=True, text=True, capture_output=True)
     if result.returncode != 0:
         print(f"Command failed with error: {result.stderr}")
-        return False
-    return True
+        return False, result
+    return True, result
 
 def post_install():
     """Post-installation steps"""
@@ -30,18 +30,37 @@ def post_install():
             cli_path += ".exe"
     else:
         # Try to find in user's bin directory
-        user_bin = os.path.expanduser("~/.local/bin/code-agent")
+        user_bin_dir = os.path.expanduser(os.path.join("~", ".local", "bin"))
+        user_bin = os.path.join(user_bin_dir, "code-agent")
         system_bin = "/usr/local/bin/code-agent"
-        cli_path = user_bin if os.path.exists(user_bin) else system_bin
+        
+        if os.path.exists(user_bin):
+            cli_path = user_bin
+        elif os.path.exists(system_bin):
+            cli_path = system_bin
+        else:
+            cli_path = None
     
     # Make the CLI script executable if it exists
-    if os.path.exists(cli_path) and sys.platform != "win32":
+    if cli_path and os.path.exists(cli_path) and sys.platform != "win32":
         print("\nMaking CLI script executable...")
-        if not run_command(f"chmod +x {cli_path}"):
-            print(f"Failed to make CLI script executable at {cli_path}.")
+        success, result = run_command(f"chmod +x {cli_path}")
+        if not success:
+            print(f"Failed to make CLI script executable at {cli_path} due to: {result.stderr}")
             return False
         print(f"CLI script made executable at {cli_path}")
-    elif sys.platform != "win32":
+    elif cli_path is None:
+        print("\nCLI script not found in any of the expected locations.")
+        print("The entry point script may be installed in a different location.")
+        print("You may need to manually locate and make it executable.")
+    elif sys.platform == "win32":
+        if cli_path and os.path.exists(cli_path):
+            print(f"\nCLI script found at: {cli_path}")
+            print("No need to make executable on Windows.")
+        else:
+            print("\nCLI script not found in expected location.")
+            print("The entry point script may be installed in a different location.")
+    else:
         print(f"\nCLI script not found at expected location: {cli_path}")
         print("The entry point script may be installed in a different location.")
         print("You may need to manually locate and make it executable.")
@@ -57,7 +76,8 @@ def post_install():
 def run_tests():
     """Run the installation tests"""
     print("\nRunning tests...")
-    if not run_command("python tests/test_installation.py"):
+    success, _ = run_command("python tests/test_installation.py")
+    if not success:
         print("Tests failed.")
         return False
     return True
@@ -75,19 +95,22 @@ if __name__ == "__main__":
     
     # Install dependencies
     print("\nInstalling dependencies...")
-    if not run_command("pip install -r requirements.txt"):
+    success, _ = run_command("pip install -r requirements.txt")
+    if not success:
         print("Failed to install dependencies.")
         sys.exit(1)
     
     # Install the package
     print("\nInstalling Code Agent...")
     if args.dev:
-        if not run_command("pip install -e ."):
+        success, _ = run_command("pip install -e .")
+        if not success:
             print("Failed to install Code Agent in development mode.")
             sys.exit(1)
         print("Code Agent installed in development mode.")
     else:
-        if not run_command("pip install ."):
+        success, _ = run_command("pip install .")
+        if not success:
             print("Failed to install Code Agent.")
             sys.exit(1)
         print("Code Agent installed.")
