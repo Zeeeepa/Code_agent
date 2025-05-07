@@ -4,6 +4,7 @@ An AI-powered code agent for GitHub repositories that helps automate development
 
 ## Features
 
+- **Prompt Mode**: Interact with Code Agent using natural language prompts
 - **Issue Solver**: Automatically analyze and solve GitHub issues
 - **Context Manager**: Collect and manage context for AI-powered code generation
 - **CI/CD Workflow**: Automate development workflows with GitHub and ngrok
@@ -54,6 +55,44 @@ make install-dev-test
 ```
 
 ## Usage
+
+### Interactive Launcher
+
+The easiest way to use Code Agent is with the interactive launcher:
+
+```bash
+# Run the interactive launcher
+python start.py
+```
+
+This will present a menu with the following options:
+1. **Prompt Mode** - Interact with Code Agent using natural language prompts
+2. **Full Test Launch** - Run all tests to verify the installation
+3. **Demo Launch** - Run the demo with a sample GitHub project
+4. **Advanced Example** - Run with an actual GitHub project selected by the user
+
+### Prompt Mode
+
+The prompt mode allows you to interact with Code Agent using natural language prompts without requiring specific repository or issue selections.
+
+```bash
+# Run directly with a prompt
+python -m code_agent.prompt_runner --prompt "Explain how to implement a binary search tree in Python"
+
+# Use a template
+python -m code_agent.prompt_runner --template code_explanation --code "def binary_search(arr, x): ..."
+
+# Read prompt from a file
+python -m code_agent.prompt_runner --file my_prompt.txt
+```
+
+Available templates:
+- `code_explanation` - Explain code in detail
+- `bug_fix` - Fix bugs in code
+- `feature_implementation` - Implement a new feature
+- `code_review` - Review code and provide feedback
+- `refactoring` - Refactor code to improve quality
+- `custom` - Use a custom prompt
 
 ### Command Line Interface
 
@@ -144,6 +183,7 @@ code_agent/
 ├── __main__.py         # Entry point for running as a module
 ├── runner.py           # Main runner script
 ├── demo.py             # Demo script
+├── prompt_runner.py    # Prompt-based interaction runner
 └── core/               # Core functionality
     ├── __init__.py
     ├── codegen_client.py  # Enhanced Codegen API client
@@ -151,6 +191,7 @@ code_agent/
     ├── context_manager.py  # Context collection and management
     ├── integration.py  # Integration with external services
     ├── issue_solver.py # GitHub issue solver
+    ├── prompt_handler.py # Prompt-based interaction handler
     └── workflow.py     # CI/CD workflow automation
 ```
 
