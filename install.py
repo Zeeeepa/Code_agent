@@ -82,10 +82,13 @@ def post_install():
         # Make the CLI script executable if it's not on Windows
         if sys.platform != "win32" and not cli_path.endswith(".py"):
             print("Making CLI script executable...")
-            if not run_command(f"chmod +x {cli_path}"):
-                raise Exception(f"Failed to make CLI script executable: {cli_path}")
+            try:
+                if not run_command(f"chmod +x {cli_path}"):
+                    raise Exception(f"Failed to make CLI script executable: {cli_path}")
+                print(f"CLI script made executable.")
+            except Exception as e:
+                print(f"Error making CLI script executable: {e}")
                 return False
-            print(f"CLI script made executable.")
     else:
         print("\nCLI script not found in standard locations.")
         print("You can still use the module directly with 'python -m code_agent'")
@@ -102,8 +105,12 @@ def post_install():
             f.write("    sys.exit(main())\n")
         
         if sys.platform != "win32":
-            if not run_command("chmod +x code-agent"):
-                raise Exception("Failed to make local wrapper script executable")
+            try:
+                if not run_command("chmod +x code-agent"):
+                    raise Exception("Failed to make local wrapper script executable")
+                print("Made local wrapper script executable.")
+            except Exception as e:
+                print(f"Error making local wrapper script executable: {e}")
                 return False
         
         print("Created local wrapper script 'code-agent' in the current directory.")
